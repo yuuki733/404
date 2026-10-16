@@ -1,0 +1,118 @@
+{
+  "name": "404-extension",
+  "displayName": "404 Extension",
+  "description": "Explains code errors in plain language, locally, on hover.",
+  "version": "0.0.1",
+  "publisher": "404-team",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Education", "Programming Languages", "Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "404extension-sidebar",
+          "title": "404 Extension",
+          "icon": "media/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "404extension-sidebar": [
+        {
+          "id": "404extension.mainView",
+          "name": "404 Extension",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "404Extension.setApiKey", "title": "404 Extension: Set API Key" },
+      { "command": "404Extension.clearApiKey", "title": "404 Extension: Clear API Key" },
+      { "command": "404Extension.resetSkill", "title": "404 Extension: Reset Learning Progress" },
+      { "command": "404Extension.explainCurrentError", "title": "404 Extension: Explain Error at Cursor" },
+      { "command": "404Extension.clearCache", "title": "404 Extension: Clear Explanation Cache" },
+      { "command": "404Extension.setSkillLevel", "title": "404 Extension: Set Skill Level" },
+      { "command": "404Extension.openSidebar", "title": "404 Extension: Open Panel" },
+      {"command": "404Extension.fixAll", "title": "404 Extension: Fix All Errors in File"},
+      {
+  "command": "404Extension.fixAll",
+  "title": "404 Extension: Fix All Errors in File"
+},
+{
+  "command": "404Extension.scanLogic",
+  "title": "404 Extension: Scan File for Logic Issues"
+},
+{
+  "command": "404Extension.clearLogicFindings",
+  "title": "404 Extension: Clear Logic Findings"
+},
+{
+  "command": "404Extension.setAdvancedPassword",
+  "title": "404 Extension: Set Advanced Settings Password"
+},
+{
+  "command": "404Extension.removeAdvancedPassword",
+  "title": "404 Extension: Remove Advanced Settings Password"
+}
+    ],
+    "configuration": {
+      "title": "404 Extension",
+      "properties": {
+        "404Extension.provider": {
+          "type": "string",
+          "default": "ollama-local",
+          "enum": ["ollama-local", "ollama-cloud", "openai", "anthropic", "gemini", "openai-compatible"],
+          "enumDescriptions": [
+            "Ollama on your machine",
+            "Ollama Cloud (API key required)",
+            "OpenAI",
+            "Anthropic Claude",
+            "Google Gemini",
+            "Any OpenAI-compatible endpoint"
+          ],
+          "description": "Default AI provider."
+        },
+        "404Extension.providerUrls.ollama-local": { "type": "string", "default": "http://localhost:11434" },
+        "404Extension.providerUrls.ollama-cloud": { "type": "string", "default": "https://ollama.com" },
+        "404Extension.providerUrls.openai": { "type": "string", "default": "https://api.openai.com/v1" },
+        "404Extension.providerUrls.anthropic": { "type": "string", "default": "https://api.anthropic.com/v1" },
+        "404Extension.providerUrls.gemini": { "type": "string", "default": "https://generativelanguage.googleapis.com/v1beta" },
+        "404Extension.providerUrls.openai-compatible": { "type": "string", "default": "https://api.example.com/v1" },
+        "404Extension.model": { "type": "string", "default": "phi3:mini", "description": "Default model name." },
+        "404Extension.useAI": { "type": "boolean", "default": true },
+        "404Extension.skillLevel": {
+          "type": "string",
+          "default": "auto",
+          "enum": ["auto", "1", "2", "3", "4", "5"],
+          "description": "Explanation detail level."
+        },
+        "404Extension.contextLines": { "type": "number", "default": 8 },
+        "404Extension.includeWorkspaceContext": { "type": "boolean", "default": true },
+        "404Extension.allowRemoteOllama": { "type": "boolean", "default": false },
+        "404Extension.taskProfiles.enabled": { "type": "boolean", "default": false },
+        "404Extension.taskProfiles.debug.provider": { "type": "string", "default": "" },
+        "404Extension.taskProfiles.debug.model": { "type": "string", "default": "" },
+        "404Extension.taskProfiles.reasoning.provider": { "type": "string", "default": "" },
+        "404Extension.taskProfiles.reasoning.model": { "type": "string", "default": "" },
+        "404Extension.taskProfiles.math.provider": { "type": "string", "default": "" },
+        "404Extension.taskProfiles.math.model": { "type": "string", "default": "" },
+        "404Extension.taskProfiles.code.provider": { "type": "string", "default": "" },
+        "404Extension.taskProfiles.code.model": { "type": "string", "default": "" }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}
