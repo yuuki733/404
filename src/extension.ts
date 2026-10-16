@@ -5,9 +5,9 @@ import { SidebarProvider } from './sidebarProvider';
 import { AutoFixer } from './autoFixer';
 import { LogicScanner } from './logicScanner';
 import { AdvancedLock } from './advancedLock';
+import { MistakeTracker } from './mistakeTracker';
 import { PROVIDERS, PROVIDER_IDS, ProviderId } from './providers/types';
 import { setApiKey, deleteApiKey, hasApiKey } from './providers/registry';
-import { MistakeTracker } from './mistakeTracker';
 
 const SUPPORTED_LANGUAGES: vscode.DocumentSelector = [
   { scheme: 'file', language: 'javascript' },
@@ -27,19 +27,20 @@ const SUPPORTED_LANG_IDS = new Set([
 
 export function activate(context: vscode.ExtensionContext): void {
   const skillTracker = new SkillTracker(context);
-const mistakeTracker = new MistakeTracker(context);
-const hoverProvider = new ErrorExplanationHoverProvider(
-  skillTracker,
-  mistakeTracker,
-  context
-);
+  const mistakeTracker = new MistakeTracker(context);
+  const hoverProvider = new ErrorExplanationHoverProvider(
+    skillTracker,
+    mistakeTracker,
+    context
+  );
   const autoFixer = new AutoFixer(context);
   const logicScanner = new LogicScanner(context);
   const advancedLock = new AdvancedLock(context);
   const sidebarProvider = new SidebarProvider(
     context,
     skillTracker,
-    advancedLock
+    advancedLock,
+    mistakeTracker
   );
 
   context.subscriptions.push(
@@ -92,7 +93,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         void vscode.window.showWarningMessage(
-          '404 Extension: Open a file before running Fix.'
+          '404 Mentor: Open a file before running Fix.'
         );
         return;
       }
@@ -107,13 +108,13 @@ const hoverProvider = new ErrorExplanationHoverProvider(
 
       if (diagCount === 0) {
         void vscode.window.showInformationMessage(
-          '404 Extension: Nothing to fix in this file.'
+          '404 Mentor: Nothing to fix in this file.'
         );
         return;
       }
 
       const confirm = await vscode.window.showWarningMessage(
-        `404 Extension will fix ${diagCount} issue${
+        `404 Mentor will fix ${diagCount} issue${
           diagCount === 1 ? '' : 's'
         } in this file. ` +
           'Some AI fixes may be imperfect — you can undo with Ctrl+Z.',
@@ -128,7 +129,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
         await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
-            title: '404 Extension',
+            title: '404 Mentor',
             cancellable: true
           },
           async (progress, token) => {
@@ -148,7 +149,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
 
             if (result.total === 0) {
               void vscode.window.showInformationMessage(
-                '404 Extension: Nothing to fix.'
+                '404 Mentor: Nothing to fix.'
               );
               return;
             }
@@ -172,7 +173,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
         );
       } catch (err) {
         void vscode.window.showErrorMessage(
-          `404 Extension fix failed: ${
+          `404 Mentor fix failed: ${
             err instanceof Error ? err.message : 'Unknown error'
           }`
         );
@@ -197,7 +198,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
           const ok = await advancedLock.verify(current);
           if (!ok) {
             void vscode.window.showErrorMessage(
-              '404 Extension: Incorrect password.'
+              '404 Mentor: Incorrect password.'
             );
             return;
           }
@@ -216,7 +217,8 @@ const hoverProvider = new ErrorExplanationHoverProvider(
           prompt: 'Confirm the new password',
           password: true,
           ignoreFocusOut: true,
-          validateInput: v => (v === p1 ? undefined : 'Passwords do not match.')
+          validateInput: v =>
+            v === p1 ? undefined : 'Passwords do not match.'
         });
         if (!p2) return;
 
@@ -224,11 +226,11 @@ const hoverProvider = new ErrorExplanationHoverProvider(
           await advancedLock.setPassword(p2);
           sidebarProvider.refresh();
           void vscode.window.showInformationMessage(
-            '404 Extension: Advanced settings password set.'
+            '404 Mentor: Advanced settings password set.'
           );
         } catch (err) {
           void vscode.window.showErrorMessage(
-            `404 Extension: ${
+            `404 Mentor: ${
               err instanceof Error ? err.message : 'Could not set password.'
             }`
           );
@@ -241,7 +243,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
       async () => {
         if (!(await advancedLock.isEnabled())) {
           void vscode.window.showInformationMessage(
-            '404 Extension: No advanced password is set.'
+            '404 Mentor: No advanced password is set.'
           );
           return;
         }
@@ -256,7 +258,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
         const ok = await advancedLock.verify(current);
         if (!ok) {
           void vscode.window.showErrorMessage(
-            '404 Extension: Incorrect password.'
+            '404 Mentor: Incorrect password.'
           );
           return;
         }
@@ -264,17 +266,46 @@ const hoverProvider = new ErrorExplanationHoverProvider(
         await advancedLock.clear();
         sidebarProvider.refresh();
         void vscode.window.showInformationMessage(
-          '404 Extension: Advanced password removed.'
+          '404 Mentor: Advanced password removed.'
         );
       }
     ),
 
-    // ============ SCAN / API KEYS / OTHER ============
+    // ============ LEARNING HISTORY ============
+    vscode.commands.registerCommand(
+      '404Extension.resetMistakeHistory',
+      async () => {
+        await mistakeTracker.reset();
+        sidebarProvider.refresh();
+        void vscode.window.showInformationMessage(
+          '404 Mentor: Learning history reset for this project.'
+        );
+      }
+    ),
+
+    vscode.commands.registerCommand(
+      '404Extension.resetAllMistakeHistory',
+      async () => {
+        const confirm = await vscode.window.showWarningMessage(
+          'This will erase learning history for every project on this machine. Continue?',
+          { modal: true },
+          'Reset everything'
+        );
+        if (confirm !== 'Reset everything') return;
+        await mistakeTracker.resetAll();
+        sidebarProvider.refresh();
+        void vscode.window.showInformationMessage(
+          '404 Mentor: All learning history cleared.'
+        );
+      }
+    ),
+
+    // ============ OTHER ============
     vscode.commands.registerCommand('404Extension.scanLogic', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         void vscode.window.showWarningMessage(
-          '404 Extension: Open a file before scanning.'
+          '404 Mentor: Open a file before scanning.'
         );
         return;
       }
@@ -282,7 +313,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
       const findings = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: '404 Extension: Scanning for logic issues…',
+          title: '404 Mentor: Scanning for logic issues…',
           cancellable: true
         },
         (_progress, token) => logicScanner.scan(editor.document, token)
@@ -290,13 +321,13 @@ const hoverProvider = new ErrorExplanationHoverProvider(
 
       if (findings.length === 0) {
         void vscode.window.showInformationMessage(
-          '404 Extension: No logic issues found in this file.'
+          '404 Mentor: No logic issues found in this file.'
         );
         return;
       }
 
       void vscode.window.showInformationMessage(
-        `404 Extension: Found ${findings.length} logic issue${
+        `404 Mentor: Found ${findings.length} logic issue${
           findings.length === 1 ? '' : 's'
         }. Check the Problems panel.`
       );
@@ -307,7 +338,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
     vscode.commands.registerCommand('404Extension.clearLogicFindings', () => {
       logicScanner.clear();
       void vscode.window.showInformationMessage(
-        '404 Extension: Cleared logic findings.'
+        '404 Mentor: Cleared logic findings.'
       );
     }),
 
@@ -336,7 +367,9 @@ const hoverProvider = new ErrorExplanationHoverProvider(
 
       await setApiKey(context, picked.id as ProviderId, key);
       sidebarProvider.refresh();
-      void vscode.window.showInformationMessage(`${picked.label} API key saved.`);
+      void vscode.window.showInformationMessage(
+        `${picked.label} API key saved.`
+      );
     }),
 
     vscode.commands.registerCommand('404Extension.clearApiKey', async () => {
@@ -361,11 +394,11 @@ const hoverProvider = new ErrorExplanationHoverProvider(
     }),
 
     vscode.commands.registerCommand('404Extension.resetSkill', async () => {
-  await skillTracker.reset();
-  await mistakeTracker.reset();
-  sidebarProvider.refresh();
-  void vscode.window.showInformationMessage('404 Extension progress reset.');
-}),
+      await skillTracker.reset();
+      await mistakeTracker.reset();
+      sidebarProvider.refresh();
+      void vscode.window.showInformationMessage('404 Mentor progress reset.');
+    }),
 
     vscode.commands.registerCommand(
       '404Extension.explainCurrentError',
@@ -383,7 +416,7 @@ const hoverProvider = new ErrorExplanationHoverProvider(
         );
         if (!diagnostic) {
           void vscode.window.showInformationMessage(
-            '404 Extension: No error at cursor.'
+            '404 Mentor: No error at cursor.'
           );
           return;
         }
@@ -394,7 +427,9 @@ const hoverProvider = new ErrorExplanationHoverProvider(
     vscode.commands.registerCommand('404Extension.clearCache', async () => {
       await context.globalState.update('404Extension.cache', {});
       sidebarProvider.refresh();
-      void vscode.window.showInformationMessage('404 Extension cache cleared.');
+      void vscode.window.showInformationMessage(
+        '404 Mentor cache cleared.'
+      );
     }),
 
     vscode.commands.registerCommand('404Extension.openSidebar', async () => {

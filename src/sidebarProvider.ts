@@ -16,6 +16,7 @@ import {
   TaskType
 } from './taskRouter';
 import { AdvancedLock } from './advancedLock';
+import { MistakeTracker } from './mistakeTracker';
 
 interface TaskProfileState {
   provider: ProviderId | '';
@@ -46,6 +47,9 @@ interface SidebarState {
   fixing: boolean;
   advancedLockEnabled: boolean;
   advancedUnlocked: boolean;
+  trackedMistakeTypes: number;
+  worstMistakeCount: number;
+  trackingScope: 'per-workspace' | 'global';
 }
 
 const LEVEL_COLORS: Record<number, string> = {
@@ -73,7 +77,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly skillTracker: SkillTracker,
-    private readonly advancedLock: AdvancedLock
+    private readonly advancedLock: AdvancedLock,
+    private readonly mistakeTracker: MistakeTracker
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -127,7 +132,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             const ok = await this.advancedLock.verify(pwd);
             if (!ok) {
               void vscode.window.showErrorMessage(
-                '404 Extension: Incorrect password.'
+                '404 Mentor: Incorrect password.'
               );
               break;
             }
@@ -246,10 +251,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'resetMistakeHistory':
+            await vscode.commands.executeCommand(
+              '404Extension.resetMistakeHistory'
+            );
+            break;
+
+          case 'resetAllMistakeHistory':
+            await vscode.commands.executeCommand(
+              '404Extension.resetAllMistakeHistory'
+            );
+            break;
+
+          case 'setTrackingScope':
+            await this.update('mistakeTracking.scope', String(message.value));
+            await this.sendStateAsync();
+            break;
+
           case 'clearCache':
             await this.context.globalState.update('404Extension.cache', {});
             void vscode.window.showInformationMessage(
-              '404 Extension cache cleared.'
+              '404 Mentor cache cleared.'
             );
             await this.sendStateAsync();
             break;
@@ -263,7 +285,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
       } catch (err) {
         void vscode.window.showErrorMessage(
-          `404 Extension: ${err instanceof Error ? err.message : 'Unknown error'}`
+          `404 Mentor: ${
+            err instanceof Error ? err.message : 'Unknown error'
+          }`
         );
       }
     });
@@ -372,6 +396,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
 
     const advancedLockEnabled = await this.advancedLock.isEnabled();
+    const summary = this.mistakeTracker.summary();
 
     return {
       skillLevel: config.get<SkillSetting>('skillLevel', 'auto'),
@@ -396,7 +421,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       logicCount,
       fixing: this.fixing,
       advancedLockEnabled,
-      advancedUnlocked: !advancedLockEnabled || this.advancedUnlocked
+      advancedUnlocked: !advancedLockEnabled || this.advancedUnlocked,
+      trackedMistakeTypes: summary.totalTypes,
+      worstMistakeCount: summary.worstCount,
+      trackingScope: config.get<'per-workspace' | 'global'>(
+        'mistakeTracking.scope',
+        'per-workspace'
+      )
     };
   }
 
@@ -490,7 +521,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
     try {
       const provider = getProvider(target.providerId);
-      const msg = await provider.test(target.baseUrl, target.apiKey, target.model);
+      const msg = await provider.test(
+        target.baseUrl,
+        target.apiKey,
+        target.model
+      );
       const models = await provider
         .listModels(target.baseUrl, target.apiKey)
         .catch(() => []);
@@ -547,7 +582,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   h2 + * { margin-top: 0; }
   .section { margin-bottom: 20px; }
 
-  /* Action bar */
   .action-bar { margin-bottom: 16px; }
   .fix-btn {
     background: var(--vscode-button-background);
@@ -584,17 +618,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     cursor: pointer;
     user-select: none;
   }
-  .logic-warning:hover {
-    background: rgba(255, 180, 0, 0.2);
-  }
-  .logic-warning .icon {
-    font-size: 13px;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-  .logic-warning .text {
-    flex: 1;
-  }
+  .logic-warning:hover { background: rgba(255, 180, 0, 0.2); }
+  .logic-warning .icon { font-size: 13px; line-height: 1; flex-shrink: 0; }
+  .logic-warning .text { flex: 1; }
 
   .fix-hint {
     font-size: 10px;
@@ -604,7 +630,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     line-height: 1.3;
   }
 
-  /* Skill slider */
   .level-display { text-align: center; margin-bottom: 10px; }
   .level-value { font-size: 28px; font-weight: 700; line-height: 1; }
   .level-name {
@@ -645,7 +670,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
   .tick.active { font-weight: 700; color: var(--vscode-foreground); }
 
-  /* Controls */
   label {
     display: block; font-size: 11px;
     color: var(--vscode-descriptionForeground); margin-bottom: 4px;
@@ -785,7 +809,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     margin: 16px 0;
   }
 
-  /* Lock screen */
   .lock-screen {
     text-align: center;
     padding: 14px 10px;
@@ -793,38 +816,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     border: 1px dashed var(--vscode-panel-border, rgba(128,128,128,0.3));
     border-radius: 4px;
   }
-  .lock-icon {
-    font-size: 22px;
-    margin-bottom: 6px;
-    opacity: 0.8;
-  }
-  .lock-title {
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 2px;
-  }
+  .lock-icon { font-size: 22px; margin-bottom: 6px; opacity: 0.8; }
+  .lock-title { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
   .lock-sub {
     font-size: 10px;
     color: var(--vscode-descriptionForeground);
     margin-bottom: 10px;
   }
-  .lock-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
+  .lock-actions { display: flex; flex-direction: column; gap: 6px; }
   .lock-actions button { width: 100%; }
 
-  .lock-manage {
-    display: flex;
-    gap: 6px;
-    margin-top: 8px;
-  }
+  .lock-manage { display: flex; gap: 6px; margin-top: 8px; }
   .lock-manage button {
-    flex: 1;
-    width: auto;
-    font-size: 11px;
-    padding: 4px 8px;
+    flex: 1; width: auto; font-size: 11px; padding: 4px 8px;
   }
 </style>
 </head>
@@ -896,7 +900,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   <details>
     <summary>Advanced</summary>
 
-    <!-- Lock screen (shown when locked) -->
     <div id="lockScreen" class="lock-screen" style="display:none;">
       <div class="lock-icon">🔒</div>
       <div class="lock-title">Advanced settings are locked</div>
@@ -906,7 +909,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       </div>
     </div>
 
-    <!-- Advanced content (hidden when locked) -->
     <div id="advancedContent">
       <div class="field">
         <label for="baseUrl">Base URL</label>
@@ -959,6 +961,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       </div>
     </div>
   </details>
+</div>
+
+<!-- LEARNING -->
+<h2>Learning</h2>
+<div class="section" style="margin-bottom: 12px;">
+  <div class="row between" style="margin-bottom: 8px;">
+    <span style="font-size: 12px;">Tracking</span>
+    <select id="trackingScope" style="width: auto; min-width: 140px;">
+      <option value="per-workspace">Per project</option>
+      <option value="global">Across projects</option>
+    </select>
+  </div>
+  <p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0 0 8px 0;">
+    <span id="mistakeSummary">No mistakes tracked yet.</span>
+  </p>
+  <button class="secondary" id="resetMistakeHistory" style="margin-top: 4px;">
+    Reset learning for this project
+  </button>
+  <button class="secondary" id="resetAllMistakeHistory" style="margin-top: 6px;">
+    Reset learning everywhere
+  </button>
 </div>
 
 <!-- OTHER -->
@@ -1118,7 +1141,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     state = s;
     autoMode = s.skillLevel === 'auto';
 
-    // Fix button + logic warning
     const fixBtn = $('fixAllBtn');
     const fixLabel = $('fixBtnLabel');
     const fixHint = $('fixHint');
@@ -1149,7 +1171,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       lw.style.display = 'none';
     }
 
-    // Slider
     $('autoLevel').checked = autoMode;
     $('levelSlider').disabled = autoMode;
     const level = autoMode ? s.effectiveLevel : Number(s.skillLevel);
@@ -1158,7 +1179,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     paintColor(level);
     paintLabels(level);
 
-    // Provider / model
     const pSelect = $('provider');
     let pHtml = '';
     for (const p of PROVIDERS) {
@@ -1171,7 +1191,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       s.availableModels, s.model, s.loadingModels ? 'Loading…' : '(no models)'
     );
 
-    // Key warning
     const warn = $('keyWarning');
     if (s.providerRequiresKey && !s.apiKeySet) {
       warn.style.display = 'flex';
@@ -1181,7 +1200,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       warn.style.display = 'none';
     }
 
-    // Status
     const dot = $('statusDot');
     dot.className = 'status-dot ' + s.status;
     const line = $('statusLine');
@@ -1196,7 +1214,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     testBtn.disabled = s.testing;
     testBtn.textContent = s.testing ? 'Testing…' : 'Test connection';
 
-    // Advanced lock
     const lockScreen = $('lockScreen');
     const advContent = $('advancedContent');
     if (s.advancedLockEnabled && !s.advancedUnlocked) {
@@ -1207,7 +1224,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       advContent.style.display = 'block';
     }
 
-    // Advanced content fields (only matter when unlocked, but harmless to set)
     $('baseUrl').value = s.baseUrl;
     $('defaultUrl').textContent = 'Default: ' + s.defaultBaseUrl;
     $('useAI').checked = s.useAI;
@@ -1224,16 +1240,30 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     $('taskBlock').style.display = s.taskProfilesEnabled ? 'block' : 'none';
     if (s.taskProfilesEnabled) buildTaskRows(s);
 
-    // Lock management buttons
     $('lockManageActive').style.display = s.advancedLockEnabled ? 'flex' : 'none';
     $('lockManageInactive').style.display = s.advancedLockEnabled ? 'none' : 'flex';
+
+    // Learning section
+    const scopeSelect = $('trackingScope');
+    if (scopeSelect) scopeSelect.value = s.trackingScope || 'per-workspace';
+
+    const summaryEl = $('mistakeSummary');
+    if (summaryEl) {
+      if (s.trackedMistakeTypes === 0) {
+        summaryEl.textContent = 'No mistakes tracked yet.';
+      } else {
+        summaryEl.textContent =
+          s.trackedMistakeTypes + ' mistake type' +
+          (s.trackedMistakeTypes === 1 ? '' : 's') +
+          ' tracked · highest repeat: ' + s.worstMistakeCount +
+          '×' + (s.trackingScope === 'global' ? ' (global)' : '');
+      }
+    }
   }
 
-  // Action bar
   $('fixAllBtn').addEventListener('click', () => send('fixAll'));
   $('logicWarning').addEventListener('click', () => send('openProblems'));
 
-  // Slider
   $('levelSlider').addEventListener('input', e => {
     const lv = Number(e.target.value);
     paintColor(lv);
@@ -1259,7 +1289,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     else send('setSkillLevel', String(state ? state.effectiveLevel : 3));
   });
 
-  // Model
   $('provider').addEventListener('change', e => send('setProvider', e.target.value));
   $('modelSelect').addEventListener('change', e => send('setModel', e.target.value));
   $('baseUrl').addEventListener('change', e =>
@@ -1273,7 +1302,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     send('refreshModels');
   });
 
-  // API keys  
   $('keyWarningBtn').addEventListener('click', () =>
     send('setApiKey', null, { provider: state.provider }));
   $('setApiKeyBtn').addEventListener('click', () =>
@@ -1281,18 +1309,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   $('clearApiKeyBtn').addEventListener('click', () =>
     send('clearApiKey', null, { provider: state.provider }));
 
-  // Tasks
   $('taskProfilesEnabled').addEventListener('change', e =>
     send('setTaskProfilesEnabled', e.target.checked));
 
-  // Lock
   $('unlockAdvancedBtn').addEventListener('click', () => send('unlockAdvanced'));
   $('lockNowBtn').addEventListener('click', () => send('lockAdvancedNow'));
   $('setPasswordBtn').addEventListener('click', () => send('setAdvancedPassword'));
   $('changePasswordBtn').addEventListener('click', () => send('setAdvancedPassword'));
   $('removePasswordBtn').addEventListener('click', () => send('removeAdvancedPassword'));
 
-  // Other
+  $('resetMistakeHistory').addEventListener('click', () =>
+    send('resetMistakeHistory'));
+  $('resetAllMistakeHistory').addEventListener('click', () =>
+    send('resetAllMistakeHistory'));
+  $('trackingScope').addEventListener('change', e =>
+    send('setTrackingScope', e.target.value));
+
   $('openSettings').addEventListener('click', () => send('openSettings'));
   $('clearCache').addEventListener('click', () => send('clearCache'));
 

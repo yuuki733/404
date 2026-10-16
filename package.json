@@ -1,13 +1,19 @@
 {
-  "name": "404-extension",
-  "displayName": "404 Extension",
-  "description": "Explains code errors in plain language, locally, on hover.",
+  "name": "404-mentor",
+  "displayName": "404 Mentor",
+  "description": "Explains code errors in plain language and teaches you to stop making them.",
   "version": "0.0.1",
   "publisher": "404-team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yuuki733/404.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Education", "Programming Languages", "Other"],
+  "categories": ["Education", "Programming Languages", "Linters", "Other"],
+  "keywords": ["errors", "tutor", "beginner", "learning", "ai", "ollama", "debug"],
   "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
@@ -15,7 +21,7 @@
       "activitybar": [
         {
           "id": "404extension-sidebar",
-          "title": "404 Extension",
+          "title": "404 Mentor",
           "icon": "media/sidebar-icon.svg"
         }
       ]
@@ -24,43 +30,29 @@
       "404extension-sidebar": [
         {
           "id": "404extension.mainView",
-          "name": "404 Extension",
+          "name": "404 Mentor",
           "type": "webview"
         }
       ]
     },
     "commands": [
-      { "command": "404Extension.setApiKey", "title": "404 Extension: Set API Key" },
-      { "command": "404Extension.clearApiKey", "title": "404 Extension: Clear API Key" },
-      { "command": "404Extension.resetSkill", "title": "404 Extension: Reset Learning Progress" },
-      { "command": "404Extension.explainCurrentError", "title": "404 Extension: Explain Error at Cursor" },
-      { "command": "404Extension.clearCache", "title": "404 Extension: Clear Explanation Cache" },
-      { "command": "404Extension.setSkillLevel", "title": "404 Extension: Set Skill Level" },
-      { "command": "404Extension.openSidebar", "title": "404 Extension: Open Panel" },
-      {"command": "404Extension.fixAll", "title": "404 Extension: Fix All Errors in File"},
-      {
-  "command": "404Extension.fixAll",
-  "title": "404 Extension: Fix All Errors in File"
-},
-{
-  "command": "404Extension.scanLogic",
-  "title": "404 Extension: Scan File for Logic Issues"
-},
-{
-  "command": "404Extension.clearLogicFindings",
-  "title": "404 Extension: Clear Logic Findings"
-},
-{
-  "command": "404Extension.setAdvancedPassword",
-  "title": "404 Extension: Set Advanced Settings Password"
-},
-{
-  "command": "404Extension.removeAdvancedPassword",
-  "title": "404 Extension: Remove Advanced Settings Password"
-}
+      { "command": "404Extension.fixAll", "title": "404 Mentor: Fix All Errors in File" },
+      { "command": "404Extension.scanLogic", "title": "404 Mentor: Scan File for Logic Issues" },
+      { "command": "404Extension.clearLogicFindings", "title": "404 Mentor: Clear Logic Findings" },
+      { "command": "404Extension.setAdvancedPassword", "title": "404 Mentor: Set Advanced Settings Password" },
+      { "command": "404Extension.removeAdvancedPassword", "title": "404 Mentor: Remove Advanced Settings Password" },
+      { "command": "404Extension.setApiKey", "title": "404 Mentor: Set API Key" },
+      { "command": "404Extension.clearApiKey", "title": "404 Mentor: Clear API Key" },
+      { "command": "404Extension.resetSkill", "title": "404 Mentor: Reset Learning Progress" },
+      { "command": "404Extension.resetMistakeHistory", "title": "404 Mentor: Reset Learning History for This Project" },
+      { "command": "404Extension.resetAllMistakeHistory", "title": "404 Mentor: Reset Learning History Everywhere" },
+      { "command": "404Extension.explainCurrentError", "title": "404 Mentor: Explain Error at Cursor" },
+      { "command": "404Extension.clearCache", "title": "404 Mentor: Clear Explanation Cache" },
+      { "command": "404Extension.setSkillLevel", "title": "404 Mentor: Set Skill Level" },
+      { "command": "404Extension.openSidebar", "title": "404 Mentor: Open Panel" }
     ],
     "configuration": {
-      "title": "404 Extension",
+      "title": "404 Mentor",
       "properties": {
         "404Extension.provider": {
           "type": "string",
@@ -82,17 +74,26 @@
         "404Extension.providerUrls.anthropic": { "type": "string", "default": "https://api.anthropic.com/v1" },
         "404Extension.providerUrls.gemini": { "type": "string", "default": "https://generativelanguage.googleapis.com/v1beta" },
         "404Extension.providerUrls.openai-compatible": { "type": "string", "default": "https://api.example.com/v1" },
-        "404Extension.model": { "type": "string", "default": "phi3:mini", "description": "Default model name." },
+        "404Extension.model": { "type": "string", "default": "phi3:mini" },
         "404Extension.useAI": { "type": "boolean", "default": true },
         "404Extension.skillLevel": {
           "type": "string",
           "default": "auto",
-          "enum": ["auto", "1", "2", "3", "4", "5"],
-          "description": "Explanation detail level."
+          "enum": ["auto", "1", "2", "3", "4", "5"]
         },
         "404Extension.contextLines": { "type": "number", "default": 8 },
         "404Extension.includeWorkspaceContext": { "type": "boolean", "default": true },
         "404Extension.allowRemoteOllama": { "type": "boolean", "default": false },
+        "404Extension.mistakeTracking.scope": {
+          "type": "string",
+          "default": "per-workspace",
+          "enum": ["per-workspace", "global"],
+          "enumDescriptions": [
+            "Each project folder keeps its own progress. Fresh project = fresh learning curve.",
+            "Progress follows you across every project on this machine."
+          ],
+          "description": "Whether mistake history is tracked per workspace or globally."
+        },
         "404Extension.taskProfiles.enabled": { "type": "boolean", "default": false },
         "404Extension.taskProfiles.debug.provider": { "type": "string", "default": "" },
         "404Extension.taskProfiles.debug.model": { "type": "string", "default": "" },
