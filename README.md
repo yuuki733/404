@@ -1,6 +1,6 @@
 # 404 Mentor
 
-Explains code errors in plain language, on hover, in VS Code. Runs entirely on your machine when paired with Ollama. Teaches you the underlying concept so you stop making the same mistake.
+Explains code errors in plain language, on hover, in VS Code. Runs entirely on your machine when paired with Ollama. Teaches you the underlying concept so you stop making the same mistake. It is mainly only for education purpose and beginner level coders.
 
 ## Features
 
@@ -20,6 +20,10 @@ Explains code errors in plain language, on hover, in VS Code. Runs entirely on y
 3. Open any `.js` or `.ts` file. Hover a red squiggle.
 
 Or skip Ollama and use an online provider (OpenAI, Anthropic, Gemini). Run **404: Set API Key** from the command palette.
+
+## notice
+
+It is still not perfect and needs more refining and works i will love your suggestions and pull request for better features
 
 ## Privacy
 
